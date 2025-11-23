@@ -1,5 +1,5 @@
 //////////////////////////////////////////////////////////
-// DIM DATE – CALENDÁRIO
+// DIMENSIONS (Star Schema)
 //////////////////////////////////////////////////////////
 
 Table dim_date {
@@ -13,108 +13,169 @@ Table dim_date {
   is_holiday   boolean
 }
 
+Table dim_site {
+  site_sk      int [pk, increment]
+  site_id      varchar // Natural Key
+  site_name    varchar
+  site_type    varchar // ex: Warehouse, Store, Hub
+  city         varchar
+  state        varchar
+  
+  // SCD Type 2 Fields
+  valid_from   date
+  valid_to     date
+  is_current   boolean
+}
+
+Table dim_product {
+  product_sk   int [pk, increment]
+  item_id      integer // Natural Key
+  product_name varchar
+  category     varchar
+  brand        varchar
+
+  // SCD Type 2 Fields
+  valid_from   date
+  valid_to     date
+  is_current   boolean
+}
+
+Table dim_route {
+  route_sk      int [pk, increment]
+  route_id      varchar // Natural Key
+  route_name    varchar
+  
+  // SCD Type 2 Fields
+  start_date    date
+  end_date      date
+  is_active     boolean
+}
+
 //////////////////////////////////////////////////////////
-// Core do DATAWAREHOUSE e Tabelas suporte
+// FACTS
 //////////////////////////////////////////////////////////
 
-Table shipments {
-  shipping_id       integer [pk]
-  site              varchar
-  sending_method    varchar
-  origin            varchar
-  destination       varchar
-  route_id          varchar
-
-  // Chaves surrogate para tabela suporte dim_date
+Table fct_shipments {
+  shipment_sk       int [pk, increment]
+  shipping_id       integer // Natural Key
+  
+  // Foreign Keys (Surrogates)
+  site_sk           int
+  origin_sk         int
+  destination_sk    int
+  route_sk          int
+  product_sk        int
+  
   sales_date_sk       int
   processing_date_sk  int
   delivery_date_sk    int
 
-  item_id           integer
+  // Degenerate Dimensions & Metrics
+  sending_method    varchar
   logistic_type     varchar
   status            varchar
-
-  // Metadados
+  
+  // Metadata
   ingestion_date    date
   batch_id          varchar
   created_at        datetime
   source_system     varchar
 }
 
-Table item_stock {
-  item_id       integer
-  warehouse     varchar
+Table fct_inventory_snapshot {
+  inventory_sk  int [pk, increment]
+  
+  // Foreign Keys
+  product_sk    int
+  site_sk       int // Warehouse Reference
+  date_sk       int // Snapshot Date
+
+  // Metrics
   item_quantity integer
+  
+  // Metadata
+  ingestion_date    date
+  source_system     varchar
 }
 
-Table events {
-  name      integer
-  date      date
-  site      integer
-  category  varchar
+Table fct_events {
+  event_sk        int [pk, increment]
+  event_name      varchar
+  category        varchar
+  
+  // Foreign Keys
+  date_sk         int
+  site_sk         int
 }
 
-Table SOP_forecast {
+Table fct_sop_forecast {
+  forecast_sk      int [pk, increment]
+  
+  // Foreign Keys
   sales_date_sk    int
-
-  site             varchar
+  site_sk          int
+  origin_sk        int
+  
+  // Metrics & Attributes
   logistic_type    varchar
-  origin           varchar
-  forecast         int
-
-  // Metadados
+  forecast_qty     int
+  
+  // Metadata
   ingestion_date   date
   batch_id         varchar
   created_at       datetime
   source_system    varchar
 }
 
-Table spf_demand_forecast {
+Table fct_spf_demand_forecast {
+  forecast_sk      int [pk, increment]
 
+  // Foreign Keys
   sales_date_sk    int
-
-  site             varchar
+  site_sk          int
+  origin_sk        int
+  destination_sk   int
+  route_sk         int
+  
+  // Metrics & Attributes
   sending_method   varchar
-  origin           varchar
-  destination      varchar
-  route_id         varchar
-  forecast         integer
+  forecast_qty     integer
 
-  // Metadados
+  // Metadata
   ingestion_date   date
   batch_id         varchar
   created_at       datetime
   source_system    varchar
 }
 
-Table processing_times {
-  site                    varchar
-  origin                  varchar
-  route_id                varchar
-  destination             varchar
-
-  // Tabela suporte
-  critical_processing_time_sk        int
-
-  // Metadados
+Table fct_processing_times {
+  proc_time_sk            int [pk, increment]
+  
+  // Foreign Keys
+  site_sk                 int
+  origin_sk               int
+  destination_sk          int
+  route_sk                int
+  critical_processing_date_sk int
+  
+  // Metadata
   ingestion_date          date
   batch_id                varchar
   created_at              datetime
   source_system           varchar
 }
 
-Table route_history {
-  route_id   varchar [pk]
-  start_date_sk int
-  end_date_sk   int
-}
-
-Table warehouse_capacity {
-  warehouse           varchar
+Table fct_warehouse_capacity {
+  capacity_sk         int [pk, increment]
+  
+  // Foreign Keys
+  site_sk             int // Warehouse Reference
   processing_date_sk  int
+  
+  // Metrics
   processing_capacity float
 
-  // Metadados
+  // Metadata
   ingestion_date      date
   batch_id            varchar
   created_at          datetime
@@ -122,28 +183,41 @@ Table warehouse_capacity {
 }
 
 //////////////////////////////////////////////////////////
-// Conexões
+// RELATIONSHIPS
 //////////////////////////////////////////////////////////
 
-// Datas -> dimensão de datas
-Ref: shipments.sales_date_sk > dim_date.date_sk
-Ref: shipments.processing_date_sk > dim_date.date_sk
-Ref: shipments.delivery_date_sk > dim_date.date_sk
-Ref: SOP_forecast.sales_date_sk > dim_date.date_sk
-Ref: spf_demand_forecast.sales_date_sk > dim_date.date_sk
-Ref: processing_times.critical_processing_time_sk > dim_date.date_sk
-Ref: warehouse_capacity.processing_date_sk > dim_date.date_sk
-Ref: events.date > dim_date.full_date
-Ref: dim_date.date_sk < route_history.start_date_sk
-Ref: dim_date.date_sk < route_history.end_date_sk
+// 1. Date Dimension Relationships
+Ref: fct_shipments.sales_date_sk > dim_date.date_sk
+Ref: fct_shipments.processing_date_sk > dim_date.date_sk
+Ref: fct_shipments.delivery_date_sk > dim_date.date_sk
+Ref: fct_sop_forecast.sales_date_sk > dim_date.date_sk
+Ref: fct_spf_demand_forecast.sales_date_sk > dim_date.date_sk
+Ref: fct_processing_times.critical_processing_date_sk > dim_date.date_sk
+Ref: fct_warehouse_capacity.processing_date_sk > dim_date.date_sk
+Ref: fct_events.date_sk > dim_date.date_sk
+Ref: fct_inventory_snapshot.date_sk > dim_date.date_sk
 
-// Relacionamento de origem/destino (warehouse) usando item_stock como cadastro
-Ref: shipments.origin > item_stock.warehouse
-Ref: SOP_forecast.origin > item_stock.warehouse
-Ref: spf_demand_forecast.origin > item_stock.warehouse
-Ref: warehouse_capacity.warehouse > item_stock.warehouse
+// 2. Site Dimension Relationships (Roles: Origin, Destination, Site, Warehouse)
+Ref: fct_shipments.site_sk > dim_site.site_sk
+Ref: fct_shipments.origin_sk > dim_site.site_sk
+Ref: fct_shipments.destination_sk > dim_site.site_sk
+Ref: fct_sop_forecast.site_sk > dim_site.site_sk
+Ref: fct_sop_forecast.origin_sk > dim_site.site_sk
+Ref: fct_spf_demand_forecast.site_sk > dim_site.site_sk
+Ref: fct_spf_demand_forecast.origin_sk > dim_site.site_sk
+Ref: fct_spf_demand_forecast.destination_sk > dim_site.site_sk
+Ref: fct_processing_times.site_sk > dim_site.site_sk
+Ref: fct_processing_times.origin_sk > dim_site.site_sk
+Ref: fct_processing_times.destination_sk > dim_site.site_sk
+Ref: fct_warehouse_capacity.site_sk > dim_site.site_sk
+Ref: fct_events.site_sk > dim_site.site_sk
+Ref: fct_inventory_snapshot.site_sk > dim_site.site_sk
 
-// Rotas ligadas ao histórico de rotas
-Ref: shipments.route_id > route_history.route_id
-Ref: processing_times.route_id > route_history.route_id
-Ref: spf_demand_forecast.route_id > route_history.route_id
+// 3. Route Dimension Relationships
+Ref: fct_shipments.route_sk > dim_route.route_sk
+Ref: fct_spf_demand_forecast.route_sk > dim_route.route_sk
+Ref: fct_processing_times.route_sk > dim_route.route_sk
+
+// 4. Product Dimension Relationships
+Ref: fct_shipments.product_sk > dim_product.product_sk
+Ref: fct_inventory_snapshot.product_sk > dim_product.product_sk
