@@ -42,7 +42,9 @@ Table shipments {
 }
 
 Table item_stock {
-  item_id       integer [pk]
+  // Removida a PK para permitir histórico (snapshot diário/mensal)
+  item_id       integer 
+  stock_date_sk int // Adicionado para rastrear o histórico
   warehouse     varchar
   item_quantity integer
 }
@@ -110,7 +112,8 @@ Table route_history {
 }
 
 Table warehouse_capacity {
-  warehouse           varchar [pk]
+  // Removida a PK 'warehouse' para permitir histórico de capacidade por data
+  warehouse           varchar 
   processing_date_sk  int
   processing_capacity float
 
@@ -135,10 +138,18 @@ Ref: processing_times.critical_processing_time_sk > dim_date.date_sk
 Ref: warehouse_capacity.processing_date_sk > dim_date.date_sk
 Ref: events.date > dim_date.full_date
 
+// Nova referência para o histórico de estoque
+Ref: item_stock.stock_date_sk > dim_date.date_sk
 
-Ref: warehouse_capacity.warehouse > item_stock.warehouse
+// A relação abaixo foi removida/comentada pois ambas as tabelas agora são históricas (Muitos-para-Muitos ao longo do tempo)
+// O correto é unir essas tabelas através das dimensões comuns (warehouse e data) em tempo de consulta.
+// Ref: warehouse_capacity.warehouse > item_stock.warehouse
 
 // Rotas ligadas ao histórico de rotas
 Ref: shipments.route_id > route_history.route_id
 Ref: processing_times.route_id > route_history.route_id
 Ref: spf_demand_forecast.route_id > route_history.route_id
+
+// Datas do histórico de rotas
+Ref: route_history.start_date_sk > dim_date.date_sk
+Ref: route_history.end_date_sk > dim_date.date_sk
