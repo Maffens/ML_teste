@@ -42,15 +42,15 @@ Table shipments {
 }
 
 Table item_stock {
-  item_id       integer
+  item_id       integer [pk]
   warehouse     varchar
   item_quantity integer
 }
 
 Table events {
-  name      integer
+  name      integer [pk]
   date      date
-  site      integer
+  site      varchar
   category  varchar
 }
 
@@ -110,7 +110,7 @@ Table route_history {
 }
 
 Table warehouse_capacity {
-  warehouse           varchar
+  warehouse           varchar [pk]
   processing_date_sk  int
   processing_capacity float
 
@@ -138,9 +138,7 @@ Ref: dim_date.date_sk < route_history.start_date_sk
 Ref: dim_date.date_sk < route_history.end_date_sk
 
 // Relacionamento de origem/destino (warehouse) usando item_stock como cadastro
-Ref: shipments.origin > item_stock.warehouse
-Ref: SOP_forecast.origin > item_stock.warehouse
-Ref: spf_demand_forecast.origin > item_stock.warehouse
+
 Ref: warehouse_capacity.warehouse > item_stock.warehouse
 
 // Rotas ligadas ao histórico de rotas
