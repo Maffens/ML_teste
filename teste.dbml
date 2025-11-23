@@ -134,10 +134,7 @@ Ref: spf_demand_forecast.sales_date_sk > dim_date.date_sk
 Ref: processing_times.critical_processing_time_sk > dim_date.date_sk
 Ref: warehouse_capacity.processing_date_sk > dim_date.date_sk
 Ref: events.date > dim_date.full_date
-Ref: dim_date.date_sk < route_history.start_date_sk
-Ref: dim_date.date_sk < route_history.end_date_sk
 
-// Relacionamento de origem/destino (warehouse) usando item_stock como cadastro
 
 Ref: warehouse_capacity.warehouse > item_stock.warehouse
 
