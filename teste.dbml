@@ -1,0 +1,149 @@
+//////////////////////////////////////////////////////////
+// DIM DATE – CALENDÁRIO
+//////////////////////////////////////////////////////////
+
+Table dim_date {
+  date_sk      int [pk]
+  full_date    date
+  year         int
+  month        int
+  day          int
+  week_of_year int
+  is_weekend   boolean
+  is_holiday   boolean
+}
+
+//////////////////////////////////////////////////////////
+// Core do DATAWAREHOUSE e Tabelas suporte
+//////////////////////////////////////////////////////////
+
+Table shipments {
+  shipping_id       integer [pk]
+  site              varchar
+  sending_method    varchar
+  origin            varchar
+  destination       varchar
+  route_id          varchar
+
+  // Chaves surrogate para tabela suporte dim_date
+  sales_date_sk       int
+  processing_date_sk  int
+  delivery_date_sk    int
+
+  item_id           integer
+  logistic_type     varchar
+  status            varchar
+
+  // Metadados
+  ingestion_date    date
+  batch_id          varchar
+  created_at        datetime
+  source_system     varchar
+}
+
+Table item_stock {
+  item_id       integer
+  warehouse     varchar
+  item_quantity integer
+}
+
+Table events {
+  name      integer
+  date      date
+  site      integer
+  category  varchar
+}
+
+Table SOP_forecast {
+  sales_date_sk    int
+
+  site             varchar
+  logistic_type    varchar
+  origin           varchar
+  forecast         int
+
+  // Metadados
+  ingestion_date   date
+  batch_id         varchar
+  created_at       datetime
+  source_system    varchar
+}
+
+Table spf_demand_forecast {
+
+  sales_date_sk    int
+
+  site             varchar
+  sending_method   varchar
+  origin           varchar
+  destination      varchar
+  route_id         varchar
+  forecast         integer
+
+  // Metadados
+  ingestion_date   date
+  batch_id         varchar
+  created_at       datetime
+  source_system    varchar
+}
+
+Table processing_times {
+  site                    varchar
+  origin                  varchar
+  route_id                varchar
+  destination             varchar
+
+  // Tabela suporte
+  critical_processing_time_sk        int
+
+  // Metadados
+  ingestion_date          date
+  batch_id                varchar
+  created_at              datetime
+  source_system           varchar
+}
+
+Table route_history {
+  route_id   varchar [pk]
+  start_date_sk int
+  end_date_sk   int
+}
+
+Table warehouse_capacity {
+  warehouse           varchar
+  processing_date_sk  int
+  processing_capacity float
+
+  // Metadados
+  ingestion_date      date
+  batch_id            varchar
+  created_at          datetime
+  source_system       varchar
+}
+
+//////////////////////////////////////////////////////////
+// Conexões
+//////////////////////////////////////////////////////////
+
+// Datas -> dimensão de datas
+Ref: shipments.sales_date_sk > dim_date.date_sk
+Ref: shipments.processing_date_sk > dim_date.date_sk
+Ref: shipments.delivery_date_sk > dim_date.date_sk
+Ref: SOP_forecast.sales_date_sk > dim_date.date_sk
+Ref: spf_demand_forecast.sales_date_sk > dim_date.date_sk
+Ref: processing_times.critical_processing_time_sk > dim_date.date_sk
+Ref: warehouse_capacity.processing_date_sk > dim_date.date_sk
+Ref: events.date > dim_date.full_date
+Ref: dim_date.date_sk < route_history.start_date_sk
+Ref: dim_date.date_sk < route_history.end_date_sk
+
+// Relacionamento de origem/destino (warehouse) usando item_stock como cadastro
+Ref: shipments.origin > item_stock.warehouse
+Ref: SOP_forecast.origin > item_stock.warehouse
+Ref: spf_demand_forecast.origin > item_stock.warehouse
+Ref: warehouse_capacity.warehouse > item_stock.warehouse
+
+// Rotas ligadas ao histórico de rotas
+Ref: shipments.route_id > route_history.route_id
+Ref: processing_times.route_id > route_history.route_id
+Ref: spf_demand_forecast.route_id > route_history.route_id
